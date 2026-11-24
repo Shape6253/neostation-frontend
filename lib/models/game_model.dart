@@ -107,8 +107,11 @@ class GameModel {
   /// Box2D image aspect ratio (width/height) for grid display.
   final String? box2dAspectRatio;
 
-  /// UI hint: Whether to display the [romname] as a subtitle in the details view.
+  /// Whether the compact game footer shows [romname] under a metadata title.
   final bool showRomFileNameSubtitle;
+
+  /// Whether Game Info may show the original filename if it differs from [name].
+  final bool showRomFileNameInInfo;
 
   const GameModel({
     required this.romname,
@@ -142,6 +145,7 @@ class GameModel {
     this.titleName,
     this.box2dAspectRatio,
     this.showRomFileNameSubtitle = false,
+    this.showRomFileNameInInfo = true,
   });
 
   /// Creates a [GameModel] from a JSON metadata map.
@@ -272,6 +276,7 @@ class GameModel {
     String? titleName,
     String? box2dAspectRatio,
     bool? showRomFileNameSubtitle,
+    bool? showRomFileNameInInfo,
   }) {
     return GameModel(
       romname: romname ?? this.romname,
@@ -306,6 +311,8 @@ class GameModel {
       box2dAspectRatio: box2dAspectRatio ?? this.box2dAspectRatio,
       showRomFileNameSubtitle:
           showRomFileNameSubtitle ?? this.showRomFileNameSubtitle,
+      showRomFileNameInInfo:
+          showRomFileNameInInfo ?? this.showRomFileNameInInfo,
     );
   }
 

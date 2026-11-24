@@ -90,6 +90,7 @@ class _SystemEmulatorSettingsDialogState
   // 0: Prefer filename, 1: Hide ext, 2: (), 3: [], 4: Recursive (only when
   // [_offersRecursiveScan]), 5: Show subfolders (only when
   // [_offersSubfolderView]).
+  late final int _romFileNameSubtitleIndex;
   late int _totalGeneralItems;
   late List<GlobalKey> _generalItemKeys;
   late List<GlobalKey> _appearanceItemKeys;
@@ -129,8 +130,10 @@ class _SystemEmulatorSettingsDialogState
     // 'favorites', 'collections', a single collection) own none, and a
     // collection's id has no `app_systems` row for the setting to be written
     // against at all.
-    _totalGeneralItems =
+    _romFileNameSubtitleIndex =
         4 + (_offersRecursiveScan ? 1 : 0) + (_offersSubfolderView ? 1 : 0);
+    _totalGeneralItems =
+        _romFileNameSubtitleIndex + (_offersRomFileNameSubtitle ? 1 : 0);
 
     _generalScrollController = ScrollController();
     _hiddenScrollController = ScrollController();
@@ -270,6 +273,14 @@ class _SystemEmulatorSettingsDialogState
     }
   }
 
+  Future<void> _toggleHideRomFileNameSubtitle(bool value) async {
+    setState(() => _system = _system.copyWith(hideRomFileNameSubtitle: value));
+    await context.read<SqliteConfigProvider>().updateHideRomFileNameSubtitle(
+      _system.id!,
+      value,
+    );
+  }
+
   Future<void> _toggleSubfolderView(bool value) async {
     setState(() => _system = _system.copyWith(subfolderView: value));
     await SystemRepository.setSubfolderView(widget.system.id!, value);
@@ -346,6 +357,14 @@ class _SystemEmulatorSettingsDialogState
   }
 
   // ── General tab rows ──────────────────────────────────────────────────────
+
+  // Aggregate views inherit the game's own system preference. Installed apps
+  // and the music player don't show a ROM filename subtitle.
+  bool get _offersRomFileNameSubtitle =>
+      _system.id != null &&
+      !_isVirtualLibrarySystem &&
+      _system.folderName != SystemFolderNames.music &&
+      !SystemFolderNames.isAndroidApps(_system.folderName);
 
   /// Whether this system offers the "Recursive Scan" row — see
   /// [SystemFolderNames.recursiveScanExcluded] for the systems that don't.

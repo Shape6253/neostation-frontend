@@ -471,7 +471,7 @@ class SqliteService {
   SqliteService._internal();
 
   // Database configuration
-  static const int _databaseVersion = 193;
+  static const int _databaseVersion = 195;
 
   /// SQL predicate (over `user_roms` aliased `ur`) for an installed app the
   /// user marked as a game. See migration v191.
@@ -544,6 +544,8 @@ class SqliteService {
              ss.hide_extension,
              ss.hide_parentheses,
              ss.hide_brackets,
+             ss.prefer_file_name,
+             ss.hide_rom_file_name_subtitle,
              ss.subfolder_view
       FROM app_systems s
       LEFT JOIN user_system_settings ss ON s.id = ss.app_system_id
@@ -1983,6 +1985,7 @@ class SqliteService {
         ignore_hidden_files INTEGER DEFAULT 1,
         setup_completed INTEGER DEFAULT 0,
         hide_bottom_screen INTEGER DEFAULT 0,
+        swap_screens INTEGER DEFAULT 0,
         sfx_enabled INTEGER DEFAULT 1,
         sfx_volume REAL DEFAULT 0.75,
         custom_sfx TEXT,
@@ -2211,6 +2214,7 @@ class SqliteService {
         custom_logo_path TEXT,
         hide_logo INTEGER DEFAULT 0,
         prefer_file_name INTEGER DEFAULT 0,
+        hide_rom_file_name_subtitle INTEGER NOT NULL DEFAULT 0,
         subfolder_view INTEGER DEFAULT 0,
         esde_media_dir TEXT,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -2224,6 +2228,7 @@ class SqliteService {
       SqliteMigrations.createAppRommPlaytimeStateTableSql,
       SqliteMigrations.createUserCollectionsTableSql,
       SqliteMigrations.createUserCollectionItemsTableSql,
+      SqliteMigrations.createUserLaunchDisplayTableSql,
       // One row per Discovery slot per ISO week. No foreign key to user_roms on
       // purpose: a rescan that removes a ROM should leave a dangling pick that
       // the service re-resolves into a new choice, not cascade the row away.
@@ -3337,6 +3342,15 @@ class SqliteService {
     await _updateSystemSetting(systemId, 'prefer_file_name', enabled ? 1 : 0);
   }
 
+  static Future<void> setSystemHideRomFileNameSubtitle(
+    String systemId,
+    bool enabled,
+  ) => _updateSystemSetting(
+    systemId,
+    'hide_rom_file_name_subtitle',
+    enabled ? 1 : 0,
+  );
+
   /// Sets whether ROM subfolders are shown as navigable folders in the game list.
   static Future<void> setSystemSubfolderView(
     String systemId,
@@ -3477,7 +3491,13 @@ class SqliteService {
 
       final Map<String, dynamic> data = existing.isNotEmpty
           ? Map.from(existing.first)
-          : {'app_system_id': systemId};
+          : {
+              'app_system_id': systemId,
+              // Upgraded v61 tables still default these columns to zero.
+              'hide_extension': 1,
+              'hide_parentheses': 1,
+              'hide_brackets': 1,
+            };
 
       data[column] = value;
       data['updated_at'] = DateTime.now().toIso8601String();
@@ -3644,6 +3664,7 @@ class SqliteService {
              ss.custom_logo_path,
              ss.hide_logo,
              ss.prefer_file_name,
+             ss.hide_rom_file_name_subtitle,
              ss.subfolder_view
       FROM app_systems s
       LEFT JOIN user_detected_systems uds ON s.id = uds.app_system_id
@@ -3840,6 +3861,7 @@ class SqliteService {
           'custom_logo_path',
           'hide_logo',
           'prefer_file_name',
+          'hide_rom_file_name_subtitle',
           'subfolder_view',
         ],
         where: 'app_system_id = ?',
@@ -3867,6 +3889,8 @@ class SqliteService {
           preferFileName:
               (int.tryParse(row['prefer_file_name']?.toString() ?? '0') ?? 0) ==
               1,
+          hideRomFileNameSubtitle:
+              row['hide_rom_file_name_subtitle']?.toString() == '1',
           subfolderView:
               (int.tryParse(row['subfolder_view']?.toString() ?? '0') ?? 0) ==
               1,
@@ -4175,6 +4199,7 @@ class SqliteService {
              ss.hide_parentheses,
              ss.hide_brackets,
              ss.prefer_file_name,
+             ss.hide_rom_file_name_subtitle,
              ss.subfolder_view
       FROM app_systems s
       LEFT JOIN user_system_settings ss ON s.id = ss.app_system_id

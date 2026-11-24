@@ -164,6 +164,17 @@ class SqliteMigrations {
     );
   ''';
 
+  /// Storage for per-system and per-game launch-display overrides (v192).
+  static const String createUserLaunchDisplayTableSql = '''
+    CREATE TABLE IF NOT EXISTS user_launch_display (
+      scope TEXT NOT NULL,
+      target TEXT NOT NULL COLLATE NOCASE,
+      display TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (scope, target)
+    );
+  ''';
+
   /// CREATE for collection membership (v139).
   ///
   /// `rom_path` is the natural key of `user_roms` and is what the favourite
@@ -713,8 +724,17 @@ class SqliteMigrations {
       case 191:
         await _migrateToVersion191(db);
         break;
+      case 192:
+        _migrateToVersion192(db);
+        break;
       case 193:
         await _migrateToVersion193(db);
+        break;
+      case 194:
+        _migrateToVersion194(db);
+        break;
+      case 195:
+        _migrateToVersion195(db);
         break;
       default:
         _log.w('No migration defined for version $version');
@@ -7796,6 +7816,58 @@ class SqliteMigrations {
     } catch (e, stackTrace) {
       _log.e('Error in migration v193: $e');
       _log.e('   StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  static void _migrateToVersion192(Database db) {
+    db.execute(createUserLaunchDisplayTableSql);
+  }
+
+  /// Migration v194: add the dual-screen swap schema before reaching v195.
+  static void _migrateToVersion194(Database db) {
+    _withImmediateWriteTransaction(db, () {
+      // Builds already at v193 may have skipped the table's original slot.
+      _migrateToVersion192(db);
+      final columns = db
+          .select('PRAGMA table_info(user_config)')
+          .map((column) => column['name'])
+          .toSet();
+      if (columns.isNotEmpty && !columns.contains('swap_screens')) {
+        db.execute(
+          'ALTER TABLE user_config ADD COLUMN swap_screens INTEGER DEFAULT 0',
+        );
+      }
+    });
+  }
+
+  /// Migration v195: let users hide the secondary ROM filename per system.
+  static void _migrateToVersion195(Database db) {
+    _withImmediateWriteTransaction(db, () {
+      final columns = db
+          .select('PRAGMA table_info(user_system_settings)')
+          .map((column) => column['name']);
+      if (!columns.contains('hide_rom_file_name_subtitle')) {
+        db.execute(
+          'ALTER TABLE user_system_settings ADD COLUMN '
+          'hide_rom_file_name_subtitle INTEGER NOT NULL DEFAULT 0',
+        );
+      }
+    });
+  }
+
+  /// Take the write lock before inspecting the schema: both Flutter engines
+  /// can migrate the same database on their first launch after an update.
+  static void _withImmediateWriteTransaction(
+    Database db,
+    void Function() action,
+  ) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      action();
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
       rethrow;
     }
   }
